@@ -14,6 +14,7 @@ import UsuariosPage from "./app/(protected)/usuarios/page"
 import ContabilidadPage from "./app/(protected)/contabilidad/page"
 import ReportesPage from "./app/(protected)/reportes/page"
 import NominaPage from "./app/(protected)/nomina/page"
+import NuevaNominaPage from "./app/(protected)/nomina/nueva/page"
 import EmpleadosPage from "./app/(protected)/nomina/empleados/page"
 import { useAuthStore } from "./store/authStore"
 
@@ -136,6 +137,14 @@ function App() {
         element={
           <ProtectedLayout>
             <NominaPage />
+          </ProtectedLayout>
+        }
+      />
+      <Route
+        path="/nomina/nueva"
+        element={
+          <ProtectedLayout>
+            <NuevaNominaPage />
           </ProtectedLayout>
         }
       />
