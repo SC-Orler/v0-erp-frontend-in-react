@@ -1,7 +1,9 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Smartphone } from "lucide-react"
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Smartphone, User } from "lucide-react"
 import Button from "@/components/Button"
 import Toggle from "@/components/Toggle"
 import Modal from "@/components/Modal"
@@ -26,9 +28,11 @@ export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [cart, setCart] = useState<CartItem[]>([])
   const [requiereFactura, setRequiereFactura] = useState(false)
-  const [selectedCliente, setSelectedCliente] = useState<number | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<(typeof mockClientes)[0] | null>(null)
   const [metodoPago, setMetodoPago] = useState<"efectivo" | "tarjeta" | "transferencia" | "credito">("efectivo")
   const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const [showCustomerDialog, setShowCustomerDialog] = useState(false)
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
 
   // Filtrar productos según búsqueda
@@ -99,7 +103,7 @@ export default function POSPage() {
       return
     }
 
-    if (requiereFactura && !selectedCliente) {
+    if (requiereFactura && !selectedCustomer) {
       addToast({ type: "warning", message: "Selecciona un cliente para facturar" })
       return
     }
@@ -114,7 +118,7 @@ export default function POSPage() {
           cantidad: item.cantidad,
           precio: item.precio,
         })),
-        clienteId: selectedCliente || undefined,
+        clienteId: selectedCustomer?.id || undefined,
         metodoPago,
         requiereFactura,
       })
@@ -127,7 +131,7 @@ export default function POSPage() {
       // Limpiar carrito
       setCart([])
       setRequiereFactura(false)
-      setSelectedCliente(null)
+      setSelectedCustomer(null)
       setMetodoPago("efectivo")
       setShowCheckoutModal(false)
     } catch (error) {
@@ -135,6 +139,35 @@ export default function POSPage() {
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  // Handler for customer selection
+  const handleSelectCustomer = (customer: (typeof mockClientes)[0]) => {
+    setSelectedCustomer(customer)
+    setShowCustomerDialog(false)
+  }
+
+  // Handler for new customer registration
+  const handleNewCustomer = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+
+    const newCustomer = {
+      id: mockClientes.length + 1,
+      nombre: formData.get("nombre") as string,
+      rfc: formData.get("rfc") as string,
+      email: formData.get("email") as string,
+      telefono: formData.get("telefono") as string,
+      direccion: formData.get("direccion") as string,
+      regimenFiscal: formData.get("regimenFiscal") as string,
+      usoCFDI: formData.get("usoCFDI") as string,
+    }
+
+    mockClientes.push(newCustomer)
+    setSelectedCustomer(newCustomer)
+    setShowNewCustomerForm(false)
+    setShowCustomerDialog(false)
+    addToast({ type: "success", message: "Cliente registrado exitosamente" })
   }
 
   return (
@@ -263,18 +296,32 @@ export default function POSPage() {
           {requiereFactura && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
-              <select
-                value={selectedCliente || ""}
-                onChange={(e) => setSelectedCliente(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Seleccionar cliente</option>
-                {mockClientes.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.nombre} - {cliente.rfc}
-                  </option>
-                ))}
-              </select>
+              {selectedCustomer ? (
+                <div className="rounded-lg border border-gray-300 p-4 bg-white">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">{selectedCustomer.nombre}</p>
+                      <p className="text-sm text-gray-600 mt-1">RFC: {selectedCustomer.rfc}</p>
+                      {selectedCustomer.email && (
+                        <p className="text-sm text-gray-600">Email: {selectedCustomer.email}</p>
+                      )}
+                    </div>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setSelectedCustomer(null)}>
+                      Cambiar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setShowCustomerDialog(true)}
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Seleccionar Cliente
+                </Button>
+              )}
             </div>
           )}
 
@@ -349,6 +396,151 @@ export default function POSPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={showCustomerDialog}
+        onClose={() => {
+          setShowCustomerDialog(false)
+          setShowNewCustomerForm(false)
+        }}
+        title={showNewCustomerForm ? "Registrar Nuevo Cliente" : "Seleccionar Cliente"}
+        size="lg"
+      >
+        {!showNewCustomerForm ? (
+          <div className="space-y-4">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <input
+                type="text"
+                placeholder="Buscar cliente por nombre o RFC..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Customer List */}
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {mockClientes.map((cliente) => (
+                <button
+                  key={cliente.id}
+                  onClick={() => handleSelectCustomer(cliente)}
+                  className="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                >
+                  <p className="font-semibold text-gray-900">{cliente.nombre}</p>
+                  <p className="text-sm text-gray-600 mt-1">RFC: {cliente.rfc}</p>
+                  {cliente.email && <p className="text-sm text-gray-500">Email: {cliente.email}</p>}
+                </button>
+              ))}
+            </div>
+
+            {/* New Customer Button */}
+            <Button type="button" variant="secondary" className="w-full" onClick={() => setShowNewCustomerForm(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Registrar Nuevo Cliente
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={handleNewCustomer} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre / Razón Social *</label>
+                <input
+                  type="text"
+                  name="nombre"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RFC *</label>
+                <input
+                  type="text"
+                  name="rfc"
+                  required
+                  maxLength={13}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                <input
+                  type="tel"
+                  name="telefono"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                <input
+                  type="text"
+                  name="direccion"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Régimen Fiscal *</label>
+                <select
+                  name="regimenFiscal"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccionar...</option>
+                  <option value="601">601 - General de Ley Personas Morales</option>
+                  <option value="603">603 - Personas Morales con Fines no Lucrativos</option>
+                  <option value="605">605 - Sueldos y Salarios e Ingresos Asimilados a Salarios</option>
+                  <option value="606">606 - Arrendamiento</option>
+                  <option value="612">612 - Personas Físicas con Actividades Empresariales</option>
+                  <option value="621">621 - Incorporación Fiscal</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Uso de CFDI *</label>
+                <select
+                  name="usoCFDI"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccionar...</option>
+                  <option value="G01">G01 - Adquisición de mercancías</option>
+                  <option value="G02">G02 - Devoluciones, descuentos o bonificaciones</option>
+                  <option value="G03">G03 - Gastos en general</option>
+                  <option value="I01">I01 - Construcciones</option>
+                  <option value="I02">I02 - Mobilario y equipo de oficina</option>
+                  <option value="P01">P01 - Por definir</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setShowNewCustomerForm(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" className="flex-1">
+                Guardar Cliente
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   )
