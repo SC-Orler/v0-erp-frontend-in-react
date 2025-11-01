@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import Input from "@/components/Input"
 import Button from "@/components/Button"
 import { authService } from "@/services/authService"
@@ -13,7 +13,7 @@ import { useUIStore } from "@/store/uiStore"
  * Página de Login
  */
 export default function LoginPage() {
-  const router = useRouter()
+  const navigate = useNavigate() // ✅ Reemplaza useRouter
   const { login } = useAuthStore()
   const { addToast } = useUIStore()
 
@@ -38,9 +38,9 @@ export default function LoginPage() {
 
       // Redirigir según rol
       if (response.user.rol === "cajero") {
-        router.push("/pos")
+        navigate("/pos") // ✅ Reemplaza router.push
       } else {
-        router.push("/dashboard")
+        navigate("/dashboard") // ✅ Reemplaza router.push
       }
     } catch (err) {
       setError("Credenciales inválidas. Por favor, intenta de nuevo.")

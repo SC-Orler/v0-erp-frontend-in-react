@@ -1,8 +1,6 @@
-"use client"
-
 import type React from "react"
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import Sidebar from "@/components/Sidebar"
 import ToastContainer from "@/components/ToastContainer"
 import { useAuthStore } from "@/store/authStore"
@@ -15,14 +13,14 @@ export default function ProtectedLayout({
 }: {
   children: React.ReactNode
 }) {
-  const router = useRouter()
+  const navigate = useNavigate()
   const { isAuthenticated } = useAuthStore()
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.push("/login")
+      navigate("/login")
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, navigate])
 
   if (!isAuthenticated) {
     return null

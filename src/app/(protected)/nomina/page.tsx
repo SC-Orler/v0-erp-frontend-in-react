@@ -1,5 +1,3 @@
-"use client"
-
 import { useEffect, useState } from "react"
 import { Plus, Calculator, DollarSign, FileText, Eye } from "lucide-react"
 import Button from "@/components/Button"
@@ -86,26 +84,10 @@ export default function NominaPage() {
 
   const columns = [
     { key: "periodo", label: "Período" },
-    {
-      key: "fechaInicio",
-      label: "Fecha Inicio",
-      render: (value: string) => formatDate(value),
-    },
-    {
-      key: "fechaFin",
-      label: "Fecha Fin",
-      render: (value: string) => formatDate(value),
-    },
-    {
-      key: "fechaPago",
-      label: "Fecha Pago",
-      render: (value: string) => formatDate(value),
-    },
-    {
-      key: "totalNeto",
-      label: "Total Neto",
-      render: (value: number) => formatCurrency(value),
-    },
+    { key: "fechaInicio", label: "Fecha Inicio", render: (v: string) => formatDate(v) },
+    { key: "fechaFin", label: "Fecha Fin", render: (v: string) => formatDate(v) },
+    { key: "fechaPago", label: "Fecha Pago", render: (v: string) => formatDate(v) },
+    { key: "totalNeto", label: "Total Neto", render: (v: number) => formatCurrency(v) },
     {
       key: "estatus",
       label: "Estatus",

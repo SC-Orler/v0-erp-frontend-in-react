@@ -539,7 +539,7 @@ export default function POSPage() {
                 Guardar Cliente
               </Button>
             </div>
-          </form>
+          </form> 
         )}
       </Modal>
     </div>
