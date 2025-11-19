@@ -6,7 +6,8 @@ import Table from "@/components/Table"
 import Button from "@/components/Button"
 import Input from "@/components/Input"
 import Pagination from "@/components/Pagination"
-import { ventasService } from "@/services/ventasService"
+import ventasServiceMock from "@/services/ventasServiceMock"
+import { clientesService } from "@/services/clientesServiceMock"
 import { formatCurrency, formatDateTime } from "@/utils/helpers"
 
 /**
@@ -19,6 +20,7 @@ export default function VentasPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [filterFactura, setFilterFactura] = useState<"all" | "con" | "sin">("all")
   const [filterMetodo, setFilterMetodo] = useState<string>("all")
+  const [clientesCredito, setClientesCredito] = useState<{ id: string; nombre: string }[]>([])
 
   const itemsPerPage = 10
 
@@ -26,9 +28,19 @@ export default function VentasPage() {
     loadVentas()
   }, [])
 
+  // Cargar lista de clientes con crédito
+  useEffect(() => {
+    clientesService.getAll().then((cls) => {
+      const conCredito = cls
+        .filter((c) => c.tipoFinanciamiento && c.activo)
+        .map((c) => ({ id: c.id, nombre: c.nombre }))
+      setClientesCredito(conCredito)
+    })
+  }, [])
+
   const loadVentas = async () => {
     try {
-      const data = await ventasService.getVentas()
+      const data = await ventasServiceMock.getVentas()
       setVentas(data)
     } catch (error) {
       console.error("Error cargando ventas:", error)
@@ -111,6 +123,15 @@ export default function VentasPage() {
     )
   }
 
+  // Construir resumen por cliente con crédito
+  const ventasPorCliente: Record<string, any[]> = {}
+  for (const v of ventas) {
+    if (v.clienteId) {
+      ventasPorCliente[v.clienteId] = ventasPorCliente[v.clienteId] || []
+      ventasPorCliente[v.clienteId].push(v)
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -166,6 +187,40 @@ export default function VentasPage() {
       {/* Tabla */}
       <div className="bg-white rounded-lg shadow">
         <Table columns={columns} data={paginatedVentas} />
+      </div>
+
+      {/* Apartado: Ventas por clientes con crédito */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+        <h2 className="text-xl font-semibold text-gray-900">Clientes con crédito - Resumen de ventas</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {clientesCredito.map((c) => {
+            const lista = ventasPorCliente[c.id] || []
+            const total = lista.reduce((s, v) => s + v.total, 0)
+            const pendientes = lista.filter((v) => v.estado === "pendiente").length
+            const facturadas = lista.filter((v) => v.estado === "facturada").length
+            const pagadas = lista.filter((v) => v.estado === "pagada").length
+            return (
+              <div key={c.id} className="border rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-gray-900">{c.nombre}</p>
+                    <p className="text-xs text-gray-500">Ventas: {lista.length}</p>
+                  </div>
+                  <span className="text-sm font-bold text-blue-600">{formatCurrency(total)}</span>
+                </div>
+                <div className="mt-3 text-xs text-gray-700 space-y-1">
+                  <p>Pendientes: {pendientes}</p>
+                  <p>Pagadas: {pagadas}</p>
+                  <p>Facturadas: {facturadas}</p>
+                </div>
+                {/* Placeholder para detalle/exportar */}
+                <div className="mt-3">
+                  <Button variant="secondary" size="sm">Ver detalle</Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* Paginación */}

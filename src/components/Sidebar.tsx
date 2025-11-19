@@ -15,6 +15,7 @@ import {
   BookOpen,
   ShoppingBag,
   Building2,
+  Tag,
   Menu,
   X,
 } from "lucide-react"
@@ -31,6 +32,7 @@ const menuItems = [
   { icon: ShoppingBag, label: "Compras", href: "/compras", roles: ["admin", "contabilidad"] },
   { icon: Building2, label: "Proveedores", href: "/proveedores", roles: ["admin", "contabilidad"] },
   { icon: Users, label: "Clientes", href: "/clientes", roles: ["admin", "cajero"] },
+  { icon: Tag, label: "Precios", href: "/precios", roles: ["admin"] },
   { icon: UserCog, label: "Usuarios", href: "/usuarios", roles: ["admin"] },
   { icon: BarChart3, label: "Reportes", href: "/reportes", roles: ["admin", "contabilidad"] },
   { icon: DollarSign, label: "Nómina", href: "/nomina", roles: ["admin", "contabilidad"] },

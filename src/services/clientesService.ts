@@ -16,6 +16,13 @@ export interface Cliente {
   activo: boolean
   fechaRegistro: string
   notas?: string
+  // Configuración de financiamiento
+  tipoFinanciamiento?: "dias" | "monto" | "unidades"
+  diasCredito?: number // para "dias": 7, 14, 30, etc.
+  montoCredito?: number // para "monto": en pesos
+  unidadesCredito?: number // para "unidades": ej. cajas
+  // Tipo de precio
+  tipoPrecio?: "general" | "mayoreo" | "especial"
 }
 
 export interface ClienteFormData {
@@ -30,6 +37,13 @@ export interface ClienteFormData {
   limiteCredito?: number
   activo: boolean
   notas?: string
+  // Configuración de financiamiento
+  tipoFinanciamiento?: "dias" | "monto" | "unidades"
+  diasCredito?: number
+  montoCredito?: number
+  unidadesCredito?: number
+  // Tipo de precio
+  tipoPrecio?: "general" | "mayoreo" | "especial"
 }
 
 export const clientesService = {

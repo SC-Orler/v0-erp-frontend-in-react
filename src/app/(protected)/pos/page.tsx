@@ -1,14 +1,14 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Smartphone, User } from "lucide-react"
 import Button from "@/components/Button"
 import Toggle from "@/components/Toggle"
 import Modal from "@/components/Modal"
-import { ventasService } from "@/services/ventasService"
-import { mockProductos, mockClientes } from "@/mocks/sampleData"
+import ventasServiceMock from "@/services/ventasServiceMock"
+import { mockProductos } from "@/mocks/sampleData"
+import { clientesService, type Cliente } from "@/services/clientesServiceMock"
+import preciosServiceMock, { type TipoPrecioConfig } from "@/services/preciosServiceMock"
 import { formatCurrency, calculateTotal, calculateIVA } from "@/utils/helpers"
 import { useUIStore } from "@/store/uiStore"
 
@@ -28,12 +28,16 @@ export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [cart, setCart] = useState<CartItem[]>([])
   const [requiereFactura, setRequiereFactura] = useState(false)
-  const [selectedCustomer, setSelectedCustomer] = useState<(typeof mockClientes)[0] | null>(null)
+  const [clienteEspecial, setClienteEspecial] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<Cliente | null>(null)
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [estadoCredito, setEstadoCredito] = useState<any>(null)
   const [metodoPago, setMetodoPago] = useState<"efectivo" | "tarjeta" | "transferencia" | "credito">("efectivo")
   const [showCheckoutModal, setShowCheckoutModal] = useState(false)
   const [showCustomerDialog, setShowCustomerDialog] = useState(false)
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [tiposPrecio, setTiposPrecio] = useState<TipoPrecioConfig[]>([])
 
   // Filtrar productos según búsqueda
   const filteredProducts = mockProductos.filter(
@@ -46,9 +50,19 @@ export default function POSPage() {
   const addToCart = (product: (typeof mockProductos)[0]) => {
     const existingItem = cart.find((item) => item.productoId === product.id)
 
+    // precio ajustado por tipoPrecio del cliente
+    const cargo = selectedCustomer?.tipoPrecio
+      ? tiposPrecio.find((t) => t.clave === selectedCustomer.tipoPrecio)?.cargo ?? 0
+      : 0
+    const precioAjustado = product.precio + cargo
+
     if (existingItem) {
       if (existingItem.cantidad < product.stock) {
-        setCart(cart.map((item) => (item.productoId === product.id ? { ...item, cantidad: item.cantidad + 1 } : item)))
+        setCart(
+          cart.map((item) =>
+            item.productoId === product.id ? { ...item, cantidad: item.cantidad + 1, precio: precioAjustado } : item,
+          ),
+        )
       } else {
         addToast({ type: "warning", message: "Stock insuficiente" })
       }
@@ -58,7 +72,7 @@ export default function POSPage() {
         {
           productoId: product.id,
           nombre: product.nombre,
-          precio: product.precio,
+          precio: precioAjustado,
           cantidad: 1,
           stock: product.stock,
         },
@@ -97,6 +111,33 @@ export default function POSPage() {
   const total = subtotal + iva
 
   // Procesar venta
+  // Cargar clientes al inicio
+  useEffect(() => {
+    clientesService.getAll().then(setClientes).catch(() => {
+      addToast({ type: "error", message: "Error al cargar clientes" })
+    })
+  }, [])
+
+  // Cargar tipos de precio dinámicos
+  useEffect(() => {
+    preciosServiceMock
+      .getAll()
+      .then(setTiposPrecio)
+      .catch(() => setTiposPrecio([]))
+  }, [])
+
+  // Actualizar estado de crédito cuando selecciona cliente
+  useEffect(() => {
+    if (selectedCustomer) {
+      ventasServiceMock
+        .getEstadoCreditoCliente(selectedCustomer.id)
+        .then(setEstadoCredito)
+        .catch(() => setEstadoCredito(null))
+    } else {
+      setEstadoCredito(null)
+    }
+  }, [selectedCustomer])
+
   const handleCheckout = async () => {
     if (cart.length === 0) {
       addToast({ type: "warning", message: "El carrito está vacío" })
@@ -107,11 +148,22 @@ export default function POSPage() {
       addToast({ type: "warning", message: "Selecciona un cliente para facturar" })
       return
     }
+    // Si es cliente especial, debe seleccionar un cliente con crédito
+    if (clienteEspecial) {
+      if (!selectedCustomer) {
+        addToast({ type: "warning", message: "Selecciona un cliente especial con crédito" })
+        return
+      }
+      if (!selectedCustomer.tipoFinanciamiento) {
+        addToast({ type: "warning", message: "El cliente seleccionado no tiene crédito" })
+        return
+      }
+    }
 
     setIsProcessing(true)
 
     try {
-      const venta = await ventasService.createVenta({
+      const venta = await ventasServiceMock.createVenta({
         items: cart.map((item) => ({
           productoId: item.productoId,
           nombre: item.nombre,
@@ -119,7 +171,7 @@ export default function POSPage() {
           precio: item.precio,
         })),
         clienteId: selectedCustomer?.id || undefined,
-        metodoPago,
+        metodoPago: clienteEspecial ? "credito" : metodoPago,
         requiereFactura,
       })
 
@@ -131,44 +183,53 @@ export default function POSPage() {
       // Limpiar carrito
       setCart([])
       setRequiereFactura(false)
+      setClienteEspecial(false)
       setSelectedCustomer(null)
       setMetodoPago("efectivo")
       setShowCheckoutModal(false)
     } catch (error) {
-      addToast({ type: "error", message: "Error al procesar la venta" })
+      addToast({ type: "error", message: (error as Error)?.message || "Error al procesar la venta" })
     } finally {
       setIsProcessing(false)
     }
   }
 
   // Handler for customer selection
-  const handleSelectCustomer = (customer: (typeof mockClientes)[0]) => {
+  const handleSelectCustomer = (customer: Cliente) => {
     setSelectedCustomer(customer)
     setShowCustomerDialog(false)
   }
 
   // Handler for new customer registration
-  const handleNewCustomer = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleNewCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
 
-    const newCustomer = {
-      id: mockClientes.length + 1,
+    const payload = {
       nombre: formData.get("nombre") as string,
       rfc: formData.get("rfc") as string,
-      email: formData.get("email") as string,
-      telefono: formData.get("telefono") as string,
-      direccion: formData.get("direccion") as string,
-      regimenFiscal: formData.get("regimenFiscal") as string,
-      usoCFDI: formData.get("usoCFDI") as string,
+      email: (formData.get("email") as string) || undefined,
+      telefono: (formData.get("telefono") as string) || undefined,
+      direccion: (formData.get("direccion") as string) || undefined,
+      ciudad: "",
+      estado: "",
+      codigoPostal: "",
+      limiteCredito: 0,
+      activo: true,
+      notas: "",
     }
 
-    mockClientes.push(newCustomer)
-    setSelectedCustomer(newCustomer)
+    try {
+      const nuevo = await clientesService.create(payload)
+      setClientes((prev) => [nuevo, ...prev])
+      setSelectedCustomer(nuevo)
     setShowNewCustomerForm(false)
     setShowCustomerDialog(false)
     addToast({ type: "success", message: "Cliente registrado exitosamente" })
+  } catch (err) {
+    addToast({ type: "error", message: "Error al registrar cliente" })
   }
+}
 
   return (
     <div className="h-screen flex flex-col lg:flex-row">
@@ -287,13 +348,20 @@ export default function POSPage() {
       {/* Modal de checkout */}
       <Modal isOpen={showCheckoutModal} onClose={() => setShowCheckoutModal(false)} title="Procesar Venta" size="lg">
         <div className="space-y-6">
-          {/* Toggle factura */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <Toggle checked={requiereFactura} onChange={setRequiereFactura} label="¿Requiere factura?" />
+          {/* Opciones de cliente y factura */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <Toggle checked={clienteEspecial} onChange={setClienteEspecial} label="Cliente especial (a crédito)" />
+              <p className="text-xs text-gray-500 mt-1">Solo muestra clientes con crédito y registra venta como crédito.</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <Toggle checked={requiereFactura} onChange={setRequiereFactura} label="¿Requiere factura ahora?" />
+              <p className="text-xs text-gray-500 mt-1">Si se activa, se emitirá factura en este momento.</p>
+            </div>
           </div>
 
           {/* Selección de cliente */}
-          {requiereFactura && (
+          {(clienteEspecial || requiereFactura) && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Cliente *</label>
               {selectedCustomer ? (
@@ -326,49 +394,51 @@ export default function POSPage() {
           )}
 
           {/* Método de pago */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">Método de Pago</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setMetodoPago("efectivo")}
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  metodoPago === "efectivo" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                <Banknote className="h-6 w-6 mx-auto mb-2" />
-                <p className="text-sm font-medium">Efectivo</p>
-              </button>
-              <button
-                onClick={() => setMetodoPago("tarjeta")}
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  metodoPago === "tarjeta" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                <CreditCard className="h-6 w-6 mx-auto mb-2" />
-                <p className="text-sm font-medium">Tarjeta</p>
-              </button>
-              <button
-                onClick={() => setMetodoPago("transferencia")}
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  metodoPago === "transferencia"
-                    ? "border-blue-600 bg-blue-50"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                <Smartphone className="h-6 w-6 mx-auto mb-2" />
-                <p className="text-sm font-medium">Transferencia</p>
-              </button>
-              <button
-                onClick={() => setMetodoPago("credito")}
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  metodoPago === "credito" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                <CreditCard className="h-6 w-6 mx-auto mb-2" />
-                <p className="text-sm font-medium">Crédito</p>
-              </button>
+          {!clienteEspecial && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Método de Pago</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setMetodoPago("efectivo")}
+                  className={`p-4 rounded-lg border-2 transition-colors ${
+                    metodoPago === "efectivo" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <Banknote className="h-6 w-6 mx-auto mb-2" />
+                  <p className="text-sm font-medium">Efectivo</p>
+                </button>
+                <button
+                  onClick={() => setMetodoPago("tarjeta")}
+                  className={`p-4 rounded-lg border-2 transition-colors ${
+                    metodoPago === "tarjeta" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <CreditCard className="h-6 w-6 mx-auto mb-2" />
+                  <p className="text-sm font-medium">Tarjeta</p>
+                </button>
+                <button
+                  onClick={() => setMetodoPago("transferencia")}
+                  className={`p-4 rounded-lg border-2 transition-colors ${
+                    metodoPago === "transferencia"
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <Smartphone className="h-6 w-6 mx-auto mb-2" />
+                  <p className="text-sm font-medium">Transferencia</p>
+                </button>
+                <button
+                  onClick={() => setMetodoPago("credito")}
+                  className={`p-4 rounded-lg border-2 transition-colors ${
+                    metodoPago === "credito" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <CreditCard className="h-6 w-6 mx-auto mb-2" />
+                  <p className="text-sm font-medium">Crédito</p>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Resumen */}
           <div className="bg-gray-50 p-4 rounded-lg space-y-2">
@@ -421,7 +491,7 @@ export default function POSPage() {
 
             {/* Customer List */}
             <div className="max-h-96 overflow-y-auto space-y-2">
-              {mockClientes.map((cliente) => (
+              {(clienteEspecial ? clientes.filter((c) => !!c.tipoFinanciamiento) : clientes).map((cliente) => (
                 <button
                   key={cliente.id}
                   onClick={() => handleSelectCustomer(cliente)}
