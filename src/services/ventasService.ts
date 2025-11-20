@@ -1,7 +1,8 @@
+import axios from "axios"
 import { api } from "./api"
 import { mockVentas, mockProductos, mockClientes } from "@/mocks/sampleData"
 import { generateFolio } from "@/utils/helpers"
-
+const API_URL  = import.meta.env.VITE_API_URL || "http://localhost:3002/api"
 interface VentaItem {
   productoId: number
   nombre: string
@@ -49,7 +50,7 @@ export const ventasService = {
     clienteId?: number
   }): Promise<Venta[]> {
     // Modo desarrollo
-    if (process.env.NODE_ENV === "development") {
+    /*if (process.env.NODE_ENV === "development") {
       return new Promise((resolve) => {
         setTimeout(() => {
           let filtered = [...mockVentas]
@@ -69,9 +70,9 @@ export const ventasService = {
           resolve(filtered)
         }, 300)
       })
-    }
+    }*/
 
-    const response = await api.get<Venta[]>("/ventas", { params })
+    const response =await axios.get(API_URL +"/ventas") ;// await api.get<Venta[]>("/ventas", { params })
     return response.data
   },
 
@@ -102,7 +103,7 @@ export const ventasService = {
    */
   async createVenta(data: CreateVentaData): Promise<Venta> {
     // Modo desarrollo
-    if (process.env.NODE_ENV === "development") {
+    /*if (process.env.NODE_ENV === "development") {
       return new Promise((resolve) => {
         setTimeout(() => {
           const subtotal = data.items.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
@@ -132,9 +133,9 @@ export const ventasService = {
           resolve(newVenta)
         }, 500)
       })
-    }
+    }*/
 
-    const response = await api.post<Venta>("/ventas", data)
+    const response = await axios.post(API_URL +"/ventas", data) ;// await api.post<Venta>("/ventas", data)
     return response.data
   },
 

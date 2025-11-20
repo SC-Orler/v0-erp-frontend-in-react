@@ -2,13 +2,14 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Smartphone, User } from "lucide-react"
 import Button from "@/components/Button"
 import Toggle from "@/components/Toggle"
 import Modal from "@/components/Modal"
 import { ventasService } from "@/services/ventasService"
-import { mockProductos, mockClientes } from "@/mocks/sampleData"
+import { productosService, type Producto } from "@/services/productosService"
+import{clientesService, type Cliente} from "@/services/clientesService"
 import { formatCurrency, calculateTotal, calculateIVA } from "@/utils/helpers"
 import { useUIStore } from "@/store/uiStore"
 
@@ -28,22 +29,58 @@ export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [cart, setCart] = useState<CartItem[]>([])
   const [requiereFactura, setRequiereFactura] = useState(false)
-  const [selectedCustomer, setSelectedCustomer] = useState<(typeof mockClientes)[0] | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<Cliente | null>(null)
   const [metodoPago, setMetodoPago] = useState<"efectivo" | "tarjeta" | "transferencia" | "credito">("efectivo")
   const [showCheckoutModal, setShowCheckoutModal] = useState(false)
   const [showCustomerDialog, setShowCustomerDialog] = useState(false)
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-
+  const [productos, setProductos] = useState<Producto[]>([])
+  const [loadingProductos, setLoadingProductos] = useState(true)
+const [clientes, setClientes] = useState<Cliente[]>([])
+const [loadingClientes, setLoadingClientes] = useState(false)
+  // Cargar productos
+  useEffect(() => {
+    const loadProductos = async () => {
+      try {
+        setLoadingProductos(true)
+        const data = await productosService.getAll()
+        setProductos(data)
+      } catch (error) {
+        addToast({ type: "error", message: "Error al cargar productos" })
+      } finally {
+        setLoadingProductos(false)
+      }
+    }
+    loadProductos()
+  }, [])
   // Filtrar productos según búsqueda
-  const filteredProducts = mockProductos.filter(
+  const filteredProducts = productos.filter(
     (p) =>
       p.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.sku.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
+// Cargar clientes (con búsqueda)
+useEffect(() => {
+  const loadClientes = async () => {
+    if (!showCustomerDialog) return
+    try {
+      setLoadingClientes(true)
+      const data = await clientesService.getAll()
+      setClientes(data)
+    } catch (error) {
+      addToast({ type: "error", message: "Error al cargar clientes" })
+    } finally {
+      setLoadingClientes(false)
+    }
+  }
+  loadClientes()
+}, [showCustomerDialog])
+
+
   // Agregar producto al carrito
-  const addToCart = (product: (typeof mockProductos)[0]) => {
+  const addToCart = (product: Producto) => {
     const existingItem = cart.find((item) => item.productoId === product.id)
 
     if (existingItem) {
@@ -142,18 +179,17 @@ export default function POSPage() {
   }
 
   // Handler for customer selection
-  const handleSelectCustomer = (customer: (typeof mockClientes)[0]) => {
+  const handleSelectCustomer = (customer:Cliente) => {
     setSelectedCustomer(customer)
     setShowCustomerDialog(false)
   }
 
   // Handler for new customer registration
-  const handleNewCustomer = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleNewCustomer =async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
 
     const newCustomer = {
-      id: mockClientes.length + 1,
       nombre: formData.get("nombre") as string,
       rfc: formData.get("rfc") as string,
       email: formData.get("email") as string,
@@ -163,11 +199,13 @@ export default function POSPage() {
       usoCFDI: formData.get("usoCFDI") as string,
     }
 
-    mockClientes.push(newCustomer)
-    setSelectedCustomer(newCustomer)
+    setIsProcessing(true)
+    const nuevoCliente = await clientesService.create(newCustomer)
+    setSelectedCustomer(nuevoCliente)
+    setClientes(prev => [...prev, nuevoCliente]) // actualiza lista
     setShowNewCustomerForm(false)
     setShowCustomerDialog(false)
-    addToast({ type: "success", message: "Cliente registrado exitosamente" })
+    addToast({ type: "success", message: "Cliente registrado" })
   }
 
   return (
@@ -331,38 +369,34 @@ export default function POSPage() {
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setMetodoPago("efectivo")}
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  metodoPago === "efectivo" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
-                }`}
+                className={`p-4 rounded-lg border-2 transition-colors ${metodoPago === "efectivo" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                  }`}
               >
                 <Banknote className="h-6 w-6 mx-auto mb-2" />
                 <p className="text-sm font-medium">Efectivo</p>
               </button>
               <button
                 onClick={() => setMetodoPago("tarjeta")}
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  metodoPago === "tarjeta" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
-                }`}
+                className={`p-4 rounded-lg border-2 transition-colors ${metodoPago === "tarjeta" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                  }`}
               >
                 <CreditCard className="h-6 w-6 mx-auto mb-2" />
                 <p className="text-sm font-medium">Tarjeta</p>
               </button>
               <button
                 onClick={() => setMetodoPago("transferencia")}
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  metodoPago === "transferencia"
+                className={`p-4 rounded-lg border-2 transition-colors ${metodoPago === "transferencia"
                     ? "border-blue-600 bg-blue-50"
                     : "border-gray-200 hover:border-gray-300"
-                }`}
+                  }`}
               >
                 <Smartphone className="h-6 w-6 mx-auto mb-2" />
                 <p className="text-sm font-medium">Transferencia</p>
               </button>
               <button
                 onClick={() => setMetodoPago("credito")}
-                className={`p-4 rounded-lg border-2 transition-colors ${
-                  metodoPago === "credito" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
-                }`}
+                className={`p-4 rounded-lg border-2 transition-colors ${metodoPago === "credito" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                  }`}
               >
                 <CreditCard className="h-6 w-6 mx-auto mb-2" />
                 <p className="text-sm font-medium">Crédito</p>
@@ -421,7 +455,7 @@ export default function POSPage() {
 
             {/* Customer List */}
             <div className="max-h-96 overflow-y-auto space-y-2">
-              {mockClientes.map((cliente) => (
+              {clientes.map((cliente) => (
                 <button
                   key={cliente.id}
                   onClick={() => handleSelectCustomer(cliente)}
@@ -539,7 +573,7 @@ export default function POSPage() {
                 Guardar Cliente
               </Button>
             </div>
-          </form> 
+          </form>
         )}
       </Modal>
     </div>

@@ -40,7 +40,14 @@ import axios from "axios"
 import MockAdapter from "axios-mock-adapter"
 
 // Usando import.meta.env en lugar de process.env
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api"
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3002/api"
+
+ export const API_CONFIG = {
+//  BASE_URL: 'https://api.acuicolaa8systems.site/api',
+  baseUrl: API_URL,
+    TIMEOUT: 10000
+};
+
 
 /**
  * Instancia de Axios configurada
